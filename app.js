@@ -1,961 +1,455 @@
-const KEY = "bd_brand_market_v3";
+const KEY="bd_brand_market_v3";
 
-const today = () => new Date().toISOString().slice(0, 10);
-const monthNow = () => new Date().toISOString().slice(0, 7);
+const today=()=>new Date().toISOString().slice(0,10);
+const monthNow=()=>new Date().toISOString().slice(0,7);
+const $=id=>document.getElementById(id);
 
-const $ = id => document.getElementById(id);
-
-let db = JSON.parse(localStorage.getItem(KEY) || "null") || {
-  employees: [],
-  attendance: {},
-  stock: [],
-  movements: []
+let db=JSON.parse(localStorage.getItem(KEY)||"null")||{
+  employees:[],attendance:{},stock:[],movements:[]
 };
 
-function save() {
-  localStorage.setItem(KEY, JSON.stringify(db));
+function save(){
+  localStorage.setItem(KEY,JSON.stringify(db));
 }
 
-function esc(v) {
-  return String(v ?? "").replace(/[&<>"']/g, m => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;"
+function esc(v){
+  return String(v??"").replace(/[&<>"']/g,m=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
   }[m]));
 }
 
-function toast(message) {
-  const t = $("toast");
-  if (!t) return;
-
-  t.textContent = message;
+function toast(msg){
+  const t=$("toast");
+  if(!t)return;
+  t.textContent=msg;
   t.classList.add("show");
-
-  clearTimeout(window._toastTimer);
-
-  window._toastTimer = setTimeout(() => {
-    t.classList.remove("show");
-  }, 2200);
+  clearTimeout(window._toast);
+  window._toast=setTimeout(()=>t.classList.remove("show"),2200);
 }
 
-/* =========================
-   NAVIGATION
-========================= */
-
-const titles = {
-  dashboard: "Dashboard",
-  employees: "Employees",
-  attendance: "Attendance",
-  salary: "Salary Report",
-  stock: "Store / Stock",
-  reports: "Reports"
+const titles={
+  dashboard:"Dashboard",
+  employees:"Employees",
+  attendance:"Attendance",
+  salary:"Salary Report",
+  stock:"Store / Stock",
+  reports:"Reports"
 };
 
-function go(page) {
-  document.querySelectorAll(".page").forEach(section => {
-    section.classList.toggle(
-      "active",
-      section.id === page
-    );
+function go(page){
+  document.querySelectorAll(".page").forEach(x=>{
+    x.classList.toggle("active",x.id===page);
   });
 
-  document.querySelectorAll(".nav").forEach(button => {
-    button.classList.toggle(
-      "active",
-      button.dataset.page === page
-    );
+  document.querySelectorAll(".nav").forEach(x=>{
+    x.classList.toggle("active",x.dataset.page===page);
   });
 
-  const title = $("title");
+  if($("title"))$("title").textContent=titles[page]||"Dashboard";
 
-  if (title) {
-    title.textContent =
-      titles[page] || "Dashboard";
-  }
-
-  document
-    .querySelector(".sidebar")
-    ?.classList.remove("open");
+  document.querySelector(".sidebar")?.classList.remove("open");
 
   renderAll();
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
 }
 
-document.addEventListener("click", e => {
-
-  const nav = e.target.closest("[data-page]");
-
-  if (nav) {
-    go(nav.dataset.page);
-    return;
-  }
-
-  const target = e.target.closest("[data-go]");
-
-  if (target) {
-    go(target.dataset.go);
-  }
+document.querySelectorAll(".nav").forEach(x=>{
+  x.addEventListener("click",()=>go(x.dataset.page));
 });
 
-/* =========================
-   MOBILE MENU
-========================= */
-
-$("menu")?.addEventListener("click", () => {
-  document
-    .querySelector(".sidebar")
-    ?.classList.toggle("open");
+document.querySelectorAll("[data-go]").forEach(x=>{
+  x.addEventListener("click",()=>go(x.dataset.go));
 });
 
-/* =========================
-   DASHBOARD
-========================= */
+$("menu")?.addEventListener("click",()=>{
+  document.querySelector(".sidebar")?.classList.toggle("open");
+});
 
-function renderDashboard() {
 
-  const date = today();
+/* DASHBOARD */
 
-  const attendance =
-    db.attendance[date] || {};
+function renderDashboard(){
+  const date=today();
+  const att=db.attendance[date]||[];
 
-  const employees =
-    db.employees;
+  const present=db.employees.filter(e=>att[e.id]==="present").length;
+  const absent=db.employees.filter(e=>att[e.id]==="absent").length;
+  const marked=present+absent;
 
-  const present =
-    employees.filter(
-      e => attendance[e.id] === "present"
-    ).length;
+  const low=db.stock.filter(
+    x=>Number(x.qty)<=Number(x.limit||0)
+  );
 
-  const absent =
-    employees.filter(
-      e => attendance[e.id] === "absent"
-    ).length;
+  if($("ec"))$("ec").textContent=db.employees.length;
+  if($("pc"))$("pc").textContent=present;
+  if($("ac"))$("ac").textContent=absent;
+  if($("sc"))$("sc").textContent=db.stock.length;
 
-  const marked =
-    present + absent;
-
-  const lowStock =
-    db.stock.filter(
-      s => Number(s.qty) <= Number(s.limit || 0)
-    );
-
-  $("ec").textContent =
-    employees.length;
-
-  $("pc").textContent =
-    present;
-
-  $("ac").textContent =
-    absent;
-
-  $("sc").textContent =
-    db.stock.length;
-
-  $("rate").textContent =
-    employees.length
-      ? `${Math.round((present / employees.length) * 100)}% attendance`
-      : "0% attendance";
-
-  $("lc").textContent =
-    `${lowStock.length} low stock`;
-
-  $("rp").textContent =
-    present;
-
-  $("ra").textContent =
-    absent;
-
-  $("rm").textContent =
-    marked;
-
-  const lowBox = $("low");
-
-  if (lowBox) {
-
-    lowBox.innerHTML =
-      lowStock.length
-
-        ? lowStock.map(item => `
-            <div class="section-row">
-              <b>${esc(item.name)}</b>
-
-              <div class="bar">
-                <i style="width:${Math.min(
-                  100,
-                  Math.max(
-                    8,
-                    Number(item.qty) /
-                    (Number(item.limit) || 1) *
-                    100
-                  )
-                )}%"></i>
-              </div>
-
-              <strong>
-                ${Number(item.qty)}
-                ${esc(item.unit || "pcs")}
-              </strong>
-            </div>
-          `).join("")
-
-        : `<div class="empty">
-             সব stock ঠিক আছে ✓
-           </div>`;
+  if($("rate")){
+    $("rate").textContent=db.employees.length
+      ?Math.round(present/db.employees.length*100)+"% attendance"
+      :"0% attendance";
   }
 
-  const sections = {};
+  if($("lc"))$("lc").textContent=low.length+" low stock";
+  if($("rp"))$("rp").textContent=present;
+  if($("ra"))$("ra").textContent=absent;
+  if($("rm"))$("rm").textContent=marked;
 
-  employees.forEach(employee => {
+  if($("low")){
+    $("low").innerHTML=low.length
+      ?low.map(x=>`
+        <div class="section-row">
+          <span><b>${esc(x.name)}</b></span>
+          <strong class="red">
+            ${x.qty} ${esc(x.unit||"")}
+          </strong>
+        </div>
+      `).join("")
+      :`<div class="empty-table">সব stock ঠিক আছে ✓</div>`;
+  }
 
-    const section =
-      employee.section || "Other";
+  const sections={};
 
-    if (!sections[section]) {
-      sections[section] = {
-        total: 0,
-        present: 0
-      };
-    }
-
-    sections[section].total++;
-
-    if (
-      attendance[employee.id] ===
-      "present"
-    ) {
-      sections[section].present++;
-    }
+  db.employees.forEach(e=>{
+    const s=e.section||"Other";
+    if(!sections[s])sections[s]=0;
+    if(att[e.id]==="present")sections[s]++;
   });
 
-  const sectionBox =
-    $("sections");
-
-  if (sectionBox) {
-
-    sectionBox.innerHTML =
-      Object.keys(sections).length
-
-        ? Object.entries(sections)
-            .map(([name, data]) => `
-              <div class="section-row">
-
-                <span>
-                  ${esc(name)}
-                </span>
-
-                <div class="bar">
-                  <i style="width:${
-                    data.total
-                      ? Math.round(
-                          data.present /
-                          data.total *
-                          100
-                        )
-                      : 0
-                  }%"></i>
-                </div>
-
-                <b>
-                  ${data.present} Present
-                </b>
-
-              </div>
-            `)
-            .join("")
-
-        : `<div class="empty">
-             কোনো employee data নেই
-           </div>`;
+  if($("sections")){
+    $("sections").innerHTML=Object.keys(sections).length
+      ?Object.entries(sections).map(([s,n])=>`
+        <div class="section-row">
+          <span>${esc(s)}</span>
+          <b>${n} Present</b>
+        </div>
+      `).join("")
+      :`<div class="empty-table">কোনো employee data নেই</div>`;
   }
 }
 
-/* =========================
-   EMPLOYEES
-========================= */
 
-function renderEmployees() {
+/* EMPLOYEES */
 
-  const search =
-    ($("eq")?.value || "")
-      .trim()
-      .toLowerCase();
+function renderEmployees(){
+  const q=($("eq")?.value||"").toLowerCase();
 
-  const list =
-    db.employees.filter(employee => {
+  const list=db.employees.filter(e=>
+    [e.name,e.id,e.designation,e.section]
+    .join(" ")
+    .toLowerCase()
+    .includes(q)
+  );
 
-      const text = [
-        employee.name,
-        employee.id,
-        employee.designation,
-        employee.section
-      ]
-        .join(" ")
-        .toLowerCase();
+  if($("count"))$("count").textContent=db.employees.length;
 
-      return text.includes(search);
-    });
+  if(!$("empTable"))return;
 
-  $("count").textContent =
-    db.employees.length;
-
-  const table =
-    $("empTable");
-
-  if (!table) return;
-
-  if (!list.length) {
-
-    table.innerHTML =
-      `<div class="empty-table">
-         কোনো employee পাওয়া যায়নি।
-       </div>`;
-
-    return;
-  }
-
-  table.innerHTML = `
-    <div class="table-wrap">
-
-      <table class="data-table">
-
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Designation</th>
-            <th>Section</th>
-            <th>Joining</th>
-            <th>Salary</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          ${list.map(employee => `
+  $("empTable").innerHTML=list.length
+    ?`
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
             <tr>
-
-              <td>
-                ${esc(employee.id)}
-              </td>
-
-              <td>
-                <b>
-                  ${esc(employee.name)}
-                </b>
-              </td>
-
-              <td>
-                ${esc(employee.designation || "-")}
-              </td>
-
-              <td>
-                ${esc(employee.section || "-")}
-              </td>
-
-              <td>
-                ${esc(employee.joining || "-")}
-              </td>
-
-              <td>
-                ৳${Number(
-                  employee.salary || 0
-                ).toLocaleString()}
-              </td>
-
+              <th>ID</th>
+              <th>Name</th>
+              <th>Designation</th>
+              <th>Section</th>
+              <th>Joining</th>
+              <th>Salary</th>
             </tr>
-          `).join("")}
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
+          </thead>
+          <tbody>
+            ${list.map(e=>`
+              <tr>
+                <td>${esc(e.id)}</td>
+                <td><b>${esc(e.name)}</b></td>
+                <td>${esc(e.designation||"-")}</td>
+                <td>${esc(e.section||"-")}</td>
+                <td>${esc(e.joining||"-")}</td>
+                <td>৳${Number(e.salary||0).toLocaleString()}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `
+    :`<div class="empty-table">কোনো employee পাওয়া যায়নি</div>`;
 }
 
-/* =========================
-   EMPLOYEE FORM
-========================= */
+$("openEmp")?.addEventListener("click",()=>{
+  $("empForm")?.classList.remove("hidden");
+});
 
-$("openEmp")?.addEventListener(
-  "click",
-  () => {
-    $("empForm")?.classList.remove("hidden");
+$("cancelEmp")?.addEventListener("click",()=>{
+  $("empForm")?.classList.add("hidden");
+});
 
-    $("en")?.focus();
-  }
-);
+$("saveEmp")?.addEventListener("click",()=>{
+  const name=$("en").value.trim();
+  const id=$("ei").value.trim();
 
-$("cancelEmp")?.addEventListener(
-  "click",
-  () => {
-    $("empForm")?.classList.add("hidden");
-  }
-);
-
-$("saveEmp")?.addEventListener(
-  "click",
-  () => {
-
-    const name =
-      $("en").value.trim();
-
-    const id =
-      $("ei").value.trim();
-
-    const designation =
-      $("ed").value.trim();
-
-    const section =
-      $("es").value.trim();
-
-    const joining =
-      $("ej").value;
-
-    const salary =
-      Number($("em").value || 0);
-
-    if (!name || !id) {
-      toast("নাম ও Employee ID দিন");
-      return;
-    }
-
-    if (
-      db.employees.some(
-        employee => employee.id === id
-      )
-    ) {
-      toast(
-        "এই Employee ID আগে থেকেই আছে"
-      );
-      return;
-    }
-
-    db.employees.push({
-      id,
-      name,
-      designation:
-        designation || "-",
-      section:
-        section || "Other",
-      joining,
-      salary
-    });
-
-    save();
-
-    [
-      "en",
-      "ei",
-      "ed",
-      "es",
-      "ej",
-      "em"
-    ].forEach(id => {
-      if ($(id)) {
-        $(id).value = "";
-      }
-    });
-
-    $("empForm")
-      ?.classList.add("hidden");
-
-    renderAll();
-
-    toast(
-      "Employee যোগ হয়েছে ✓"
-    );
-  }
-);
-
-$("eq")?.addEventListener(
-  "input",
-  renderEmployees
-);
-
-/* =========================
-   ATTENDANCE
-========================= */
-
-if ($("ad")) {
-  $("ad").value = today();
-}
-
-function renderAttendance() {
-
-  const date =
-    $("ad")?.value || today();
-
-  const attendance =
-    db.attendance[date] || {};
-
-  const search =
-    ($("aq")?.value || "")
-      .trim()
-      .toLowerCase();
-
-  const list =
-    db.employees.filter(employee => {
-
-      const text = [
-        employee.name,
-        employee.id,
-        employee.designation,
-        employee.section
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return text.includes(search);
-    });
-
-  const table =
-    $("attTable");
-
-  if (!table) return;
-
-  if (!list.length) {
-
-    table.innerHTML =
-      `<div class="empty-table">
-         কোনো employee নেই।
-         আগে Employees থেকে কর্মী যোগ করুন।
-       </div>`;
-
+  if(!name||!id){
+    toast("নাম ও Employee ID দিন");
     return;
   }
 
-  table.innerHTML = `
-    <div class="table-wrap">
-
-      <table class="data-table">
-
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Designation</th>
-            <th>Section</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          ${list.map(employee => {
-
-            const status =
-              attendance[employee.id] || "";
-
-            return `
-              <tr>
-
-                <td>
-                  ${esc(employee.id)}
-                </td>
-
-                <td>
-                  <b>
-                    ${esc(employee.name)}
-                  </b>
-                </td>
-
-                <td>
-                  ${esc(
-                    employee.designation || "-"
-                  )}
-                </td>
-
-                <td>
-                  ${esc(
-                    employee.section || "-"
-                  )}
-                </td>
-
-                <td>
-
-                  <select
-                    class="status-select"
-                    data-att-id="${esc(employee.id)}">
-
-                    <option
-                      value=""
-                      ${status === ""
-                        ? "selected"
-                        : ""}>
-                      Not Marked
-                    </option>
-
-                    <option
-                      value="present"
-                      ${status === "present"
-                        ? "selected"
-                        : ""}>
-                      ✓ Present
-                    </option>
-
-                    <option
-                      value="absent"
-                      ${status === "absent"
-                        ? "selected"
-                        : ""}>
-                      × Absent
-                    </option>
-
-                  </select>
-
-                </td>
-
-              </tr>
-            `;
-          }).join("")}
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
-}
-
-$("ad")?.addEventListener(
-  "change",
-  renderAttendance
-);
-
-$("aq")?.addEventListener(
-  "input",
-  renderAttendance
-);
-
-function setAllAttendance(status) {
-
-  const date =
-    $("ad")?.value || today();
-
-  if (!db.attendance[date]) {
-    db.attendance[date] = {};
+  if(db.employees.some(e=>e.id===id)){
+    toast("এই Employee ID আগে থেকেই আছে");
+    return;
   }
 
-  db.employees.forEach(employee => {
-    db.attendance[date][employee.id] =
-      status;
+  db.employees.push({
+    id:id,
+    name:name,
+    designation:$("ed").value.trim(),
+    section:$("es").value.trim(),
+    joining:$("ej").value,
+    salary:Number($("em").value||0)
   });
 
   save();
 
+  ["en","ei","ed","es","ej","em"].forEach(id=>{
+    if($(id))$(id).value="";
+  });
+
+  $("empForm")?.classList.add("hidden");
+
+  renderAll();
+  toast("Employee added ✓");
+});
+
+$("eq")?.addEventListener("input",renderEmployees);
+
+
+/* ATTENDANCE */
+
+if($("ad"))$("ad").value=today();
+
+function renderAttendance(){
+  const date=$("ad")?.value||today();
+  const att=db.attendance[date]||{};
+  const q=($("aq")?.value||"").toLowerCase();
+
+  const list=db.employees.filter(e=>
+    [e.name,e.id,e.designation,e.section]
+    .join(" ")
+    .toLowerCase()
+    .includes(q)
+  );
+
+  if(!$("attTable"))return;
+
+  $("attTable").innerHTML=list.length
+    ?`
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Designation</th>
+              <th>Section</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${list.map(e=>`
+              <tr>
+                <td>${esc(e.id)}</td>
+                <td><b>${esc(e.name)}</b></td>
+                <td>${esc(e.designation||"-")}</td>
+                <td>${esc(e.section||"-")}</td>
+                <td>
+                  <select class="status-select" data-att-id="${esc(e.id)}">
+                    <option value="" ${!att[e.id]?"selected":""}>Not Marked</option>
+                    <option value="present" ${att[e.id]==="present"?"selected":""}>✓ Present</option>
+                    <option value="absent" ${att[e.id]==="absent"?"selected":""}>× Absent</option>
+                  </select>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `
+    :`<div class="empty-table">কোনো employee নেই</div>`;
+}
+
+$("ad")?.addEventListener("change",renderAttendance);
+$("aq")?.addEventListener("input",renderAttendance);
+
+function allAttendance(status){
+  const date=$("ad")?.value||today();
+
+  if(!db.attendance[date])db.attendance[date]={};
+
+  db.employees.forEach(e=>{
+    db.attendance[date][e.id]=status;
+  });
+
+  save();
   renderAll();
 
   toast(
-    status === "present"
-      ? "সবাই Present করা হয়েছে ✓"
-      : "সবাই Absent করা হয়েছে"
+    status==="present"
+      ?"সবাই Present করা হয়েছে ✓"
+      :"সবাই Absent করা হয়েছে"
   );
 }
 
 $("allP")?.addEventListener(
-  "click",
-  () => setAllAttendance("present")
+  "click",()=>allAttendance("present")
 );
 
 $("allA")?.addEventListener(
-  "click",
-  () => setAllAttendance("absent")
+  "click",()=>allAttendance("absent")
 );
 
-$("saveA")?.addEventListener(
-  "click",
-  () => {
+$("saveA")?.addEventListener("click",()=>{
+  const date=$("ad")?.value||today();
 
-    const date =
-      $("ad")?.value || today();
+  if(!db.attendance[date])
+    db.attendance[date]={};
 
-    if (!db.attendance[date]) {
-      db.attendance[date] = {};
-    }
+  document.querySelectorAll("[data-att-id]").forEach(x=>{
+    const id=x.dataset.attId;
 
-    document
-      .querySelectorAll("[data-att-id]")
-      .forEach(select => {
+    if(x.value)
+      db.attendance[date][id]=x.value;
+    else
+      delete db.attendance[date][id];
+  });
 
-        const id =
-          select.dataset.attId;
+  save();
+  renderAll();
+  toast("Attendance saved ✓");
+});
 
-        if (select.value) {
-          db.attendance[date][id] =
-            select.value;
-        } else {
-          delete db.attendance[date][id];
-        }
 
-      });
+/* SALARY */
 
-    save();
+if($("sm"))$("sm").value=monthNow();
 
-    renderAll();
+function renderSalary(){
+  const month=$("sm")?.value||monthNow();
 
-    toast(
-      "Attendance saved ✓"
-    );
-  }
-);
+  const count={};
 
-/* =========================
-   SALARY
-========================= */
+  db.employees.forEach(e=>{
+    count[e.id]={present:0,absent:0};
+  });
 
-if ($("sm")) {
-  $("sm").value = monthNow();
+  Object.entries(db.attendance).forEach(([date,data])=>{
+    if(!date.startsWith(month))return;
+
+    Object.entries(data).forEach(([id,status])=>{
+      if(!count[id])return;
+
+      if(status==="present")
+        count[id].present++;
+
+      if(status==="absent")
+        count[id].absent++;
+    });
+  });
+
+  if(!$("salTable"))return;
+
+  $("salTable").innerHTML=db.employees.length
+    ?`
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Section</th>
+              <th>Basic Salary</th>
+              <th>Present</th>
+              <th>Absent</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${db.employees.map(e=>`
+              <tr>
+                <td>${esc(e.id)}</td>
+                <td><b>${esc(e.name)}</b></td>
+                <td>${esc(e.section||"-")}</td>
+                <td>৳${Number(e.salary||0).toLocaleString()}</td>
+                <td>${count[e.id].present}</td>
+                <td>${count[e.id].absent}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `
+    :`<div class="empty-table">কোনো employee নেই</div>`;
 }
 
-function renderSalary() {
+$("sm")?.addEventListener("change",renderSalary);
 
-  const month =
-    $("sm")?.value || monthNow();
 
-  const count = {};
+/* STOCK */
 
-  db.employees.forEach(employee => {
-    count[employee.id] = {
-      present: 0,
-      absent: 0
-    };
-  });
+$("openStock")?.addEventListener("click",()=>{
+  $("stockForm")?.classList.remove("hidden");
+});
 
-  Object.entries(
-    db.attendance
-  ).forEach(([date, records]) => {
+$("cancelStock")?.addEventListener("click",()=>{
+  $("stockForm")?.classList.add("hidden");
+});
 
-    if (!date.startsWith(month)) {
-      return;
-    }
+$("saveStock")?.addEventListener("click",()=>{
+  const name=$("sn").value.trim();
 
-    Object.entries(records)
-      .forEach(([id, status]) => {
-
-        if (!count[id]) return;
-
-        if (status === "present") {
-          count[id].present++;
-        }
-
-        if (status === "absent") {
-          count[id].absent++;
-        }
-
-      });
-  });
-
-  const table =
-    $("salTable");
-
-  if (!table) return;
-
-  if (!db.employees.length) {
-
-    table.innerHTML =
-      `<div class="empty-table">
-         কোনো employee নেই।
-       </div>`;
-
+  if(!name){
+    toast("মালের নাম দিন");
     return;
   }
 
-  table.innerHTML = `
-    <div class="table-wrap">
-
-      <table class="data-table">
-
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Section</th>
-            <th>Basic Salary</th>
-            <th>Present</th>
-            <th>Absent</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          ${db.employees.map(employee => `
-            <tr>
-
-              <td>
-                ${esc(employee.id)}
-              </td>
-
-              <td>
-                <b>
-                  ${esc(employee.name)}
-                </b>
-              </td>
-
-              <td>
-                ${esc(employee.section || "-")}
-              </td>
-
-              <td>
-                ৳${Number(
-                  employee.salary || 0
-                ).toLocaleString()}
-              </td>
-
-              <td>
-                ${count[employee.id].present}
-              </td>
-
-              <td>
-                ${count[employee.id].absent}
-              </td>
-
-            </tr>
-          `).join("")}
-
-        </tbody>
-
-      </table>
-
-    </div>
-  `;
-}
-
-$("sm")?.addEventListener(
-  "change",
-  renderSalary
-);
-
-/* =========================
-   STOCK
-========================= */
-
-$("openStock")?.addEventListener(
-  "click",
-  () => {
-    $("stockForm")
-      ?.classList.remove("hidden");
+  if(db.stock.some(
+    x=>x.name.toLowerCase()===name.toLowerCase()
+  )){
+    toast("এই item আগে থেকেই আছে");
+    return;
   }
-);
 
-$("cancelStock")?.addEventListener(
-  "click",
-  () => {
-    $("stockForm")
-      ?.classList.add("hidden");
-  }
-);
+  db.stock.push({
+    id:Date.now(),
+    name:name,
+    qty:Number($("sq").value||0),
+    unit:$("su").value.trim()||"pcs",
+    limit:Number($("sl").value||0)
+  });
 
-$("saveStock")?.addEventListener(
-  "click",
-  () => {
+  save();
 
-    const name =
-      $("sn").value.trim();
+  ["sn","sq","su","sl"].forEach(id=>{
+    if($(id))$(id).value="";
+  });
 
-    const qty =
-      Number($("sq").value || 0);
+  $("stockForm")?.classList.add("hidden");
 
-    const unit =
-      $("su").value.trim() || "pcs";
+  renderAll();
+  toast("Stock item saved ✓");
+});
 
-    const limit =
-      Number($("sl").value || 0);
+function renderStock(){
+  const q=($("sqry")?.value||"").toLowerCase();
 
-    if (!name) {
-      toast("মালের নাম দিন");
-      return;
-    }
+  const list=db.stock.filter(x=>
+    x.name.toLowerCase().includes(q)
+  );
 
-    if (qty < 0 || limit < 0) {
-      toast("Quantity ঠিকভাবে দিন");
-      return;
-    }
+  if(!$("stockTable"))return;
 
-    if (
-      db.stock.some(
-        item =>
-          item.name.toLowerCase() ===
-          name.toLowerCase()
-      )
-    ) {
-      toast(
-        "এই stock item আগে থেকেই আছে"
-      );
-      return;
-    }
-
-    db.stock.push({
-      id: Date.now(),
-      name,
-      qty,
-      unit,
-      limit
-    });
-
-    save();
-
-    [
-      "sn",
-      "sq",
-      "su",
-      "sl"
-    ].forEach(id => {
-      if ($(id)) {
-        $(id).value = "";
-      }
-    });
-
-    $("stockForm")
-      ?.classList.add("hidden");
-
-    renderAll();
-
-    toast(
-      "Stock item যোগ হয়েছে ✓"
-    );
-  }
-);
-
-function renderStock() {
-
-  const search =
-    ($("sqry")?.value || "")
-      .trim()
-      .toLowerCase();
-
-  const list =
-    db.stock.filter(item =>
-      item.name
-        .toLowerCase()
-        .includes(search)
-    );
-
-  const table =
-    $("stockTable");
-
-  if (!table) return;
-
-  if (!list.length) {
-
-    table.innerHTML =
-      `<div class="empty-table">
-         কোনো stock item নেই।
-       </div>`;
-
-  } else {
-
-    table.innerHTML = `
+  $("stockTable").innerHTML=list.length
+    ?`
       <div class="table-wrap">
-
         <table class="data-table">
-
           <thead>
             <tr>
               <th>Item</th>
@@ -965,199 +459,119 @@ function renderStock() {
               <th>Status</th>
             </tr>
           </thead>
-
           <tbody>
-
-            ${list.map(item => {
-
-              const low =
-                Number(item.qty) <=
-                Number(item.limit || 0);
-
-              return `
-                <tr>
-
-                  <td>
-                    <b>
-                      ${esc(item.name)}
-                    </b>
-                  </td>
-
-                  <td>
-                    ${Number(item.qty)}
-                  </td>
-
-                  <td>
-                    ${esc(
-                      item.unit || "pcs"
-                    )}
-                  </td>
-
-                  <td>
-                    ${Number(
-                      item.limit || 0
-                    )}
-                  </td>
-
-                  <td>
-                    ${
-                      low
-                        ? '<span class="red">Low stock</span>'
-                        : '<span class="green">OK</span>'
-                    }
-                  </td>
-
-                </tr>
-              `;
-
-            }).join("")}
-
-          </tbody>
-
-        </table>
-
-      </div>
-    `;
-  }
-
-  const moves =
-    $("moves");
-
-  if (!moves) return;
-
-  const recent =
-    db.movements
-      .slice(-10)
-      .reverse();
-
-  moves.innerHTML =
-    recent.length
-
-      ? `
-        <div class="table-wrap">
-
-          <table class="data-table">
-
-            <thead>
+            ${list.map(x=>`
               <tr>
-                <th>Date</th>
-                <th>Item</th>
-                <th>Type</th>
-                <th>Qty</th>
+                <td><b>${esc(x.name)}</b></td>
+                <td>${Number(x.qty)}</td>
+                <td>${esc(x.unit||"pcs")}</td>
+                <td>${Number(x.limit||0)}</td>
+                <td>
+                  ${
+                    Number(x.qty)<=Number(x.limit||0)
+                    ?'<span class="red">Low stock</span>'
+                    :'<span class="green">OK</span>'
+                  }
+                </td>
               </tr>
-            </thead>
+            `).join("")}
+          </tbody>
+        </table>
+      </div>
+    `
+    :`<div class="empty-table">কোনো stock item নেই</div>`;
 
-            <tbody>
+  if($("moves")){
+    const moves=db.movements.slice(-10).reverse();
 
-              ${recent.map(move => `
-                <tr>
-
-                  <td>
-                    ${esc(move.date)}
-                  </td>
-
-                  <td>
-                    ${esc(move.name)}
-                  </td>
-
-                  <td>
-                    ${
-                      move.type === "in"
-                        ? '<span class="green">Stock In</span>'
-                        : '<span class="red">Stock Out</span>'
-                    }
-                  </td>
-
-                  <td>
-                    ${Number(move.qty)}
-                  </td>
-
-                </tr>
-              `).join("")}
-
-            </tbody>
-
-          </table>
-
+    $("moves").innerHTML=moves.length
+      ?moves.map(x=>`
+        <div class="section-row">
+          <span>${esc(x.date)} — ${esc(x.name)}</span>
+          <b>${x.type==="in"?"+":"-"}${x.qty}</b>
         </div>
-      `
-
-      : `<div class="empty">
-           কোনো movement নেই।
-         </div>`;
+      `).join("")
+      :`<div class="empty-table">কোনো movement নেই</div>`;
+  }
 }
 
-$("sqry")?.addEventListener(
-  "input",
-  renderStock
-);
+$("sqry")?.addEventListener("input",renderStock);
 
-function moveStock(type) {
-
-  if (!db.stock.length) {
-    toast(
-      "আগে একটি stock item যোগ করুন"
-    );
+function stockMove(type){
+  if(!db.stock.length){
+    toast("আগে একটি stock item যোগ করুন");
     return;
   }
 
-  const items =
-    db.stock
-      .map(
-        (item, index) =>
-          `${index + 1}. ${item.name} (${item.qty} ${item.unit})`
-      )
-      .join("\n");
+  const list=db.stock
+    .map((x,i)=>`${i+1}. ${x.name} (${x.qty} ${x.unit})`)
+    .join("\n");
 
-  const choice =
-    prompt(
-      `কোন item?\n\n${items}\n\nItem number লিখুন:`
-    );
+  const choice=prompt(
+    "কোন item?\n\n"+list+"\n\nItem number:"
+  );
 
-  if (choice === null) {
-    return;
-  }
+  if(choice===null)return;
 
-  const index =
-    Number(choice) - 1;
+  const index=Number(choice)-1;
 
-  if (!db.stock[index]) {
+  if(!db.stock[index]){
     toast("ভুল item number");
     return;
   }
 
-  const quantity =
-    Number(
-      prompt("Quantity লিখুন:") || 0
-    );
+  const qty=Number(prompt("Quantity:")||0);
 
-  if (
-    !Number.isFinite(quantity) ||
-    quantity <= 0
-  ) {
+  if(qty<=0){
     toast("সঠিক quantity দিন");
     return;
   }
 
-  const item =
-    db.stock[index];
+  const item=db.stock[index];
 
-  if (
-    type === "out" &&
-    quantity > Number(item.qty)
-  ) {
+  if(type==="out"&&qty>Number(item.qty)){
     toast("এত stock নেই");
     return;
   }
 
-  item.qty =
-    Number(item.qty) +
-    (
-      type === "in"
-        ? quantity
-        : -quantity
-    );
+  item.qty=
+    Number(item.qty)+
+    (type==="in"?qty:-qty);
 
   db.movements.push({
-    date: today(),
-  
+    date:today(),
+    name:item.name,
+    type:type,
+    qty:qty
+  });
+
+  save();
+  renderAll();
+
+  toast(
+    type==="in"
+      ?"Stock In saved ✓"
+      :"Stock Out saved ✓"
+  );
+}
+
+$("stockIn")?.addEventListener(
+  "click",()=>stockMove("in")
+);
+
+$("stockOut")?.addEventListener(
+  "click",()=>stockMove("out")
+);
+
+
+/* START */
+
+function renderAll(){
+  renderDashboard();
+  renderEmployees();
+  renderAttendance();
+  renderSalary();
+  renderStock();
+}
+
+renderAll();
