@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BD Brand Market</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="loginView" class="login-wrap">
+  <div class="login-card">
+    <div class="brand-mark">BD</div>
+    <h1>BD Brand Market</h1>
+    <p>Garments Factory Manager</p>
+    <form id="loginForm">
+      <label>Email</label>
+      <input id="email" type="email" autocomplete="username" required placeholder="Email">
+      <label>Password</label>
+      <input id="password" type="password" autocomplete="current-password" required placeholder="Password">
+      <button class="primary full" id="loginBtn">Login</button>
+      <div id="loginError" class="error"></div>
+    </form>
+  </div>
+</div>
+
+<div id="appView" class="hidden">
+  <header class="topbar">
+    <button class="icon-btn" id="menuBtn">☰</button>
+    <div><strong>BD Brand Market</strong><small>Garments Factory Manager</small></div>
+    <button class="user-pill" id="userBtn">Account</button>
+  </header>
+  <div class="shell">
+    <aside id="sidebar">
+      <button class="nav active" data-page="dashboard">🏠 Dashboard</button>
+      <button class="nav" data-page="employees">👥 Employees</button>
+      <button class="nav" data-page="attendance">🕘 Attendance</button>
+      <button class="nav" data-page="scanner">📷 Attendance Scanner</button>
+      <button class="nav" data-page="stock">📦 Store / Stock</button>
+      <button class="nav" data-page="reports">📊 Reports</button>
+      <button class="nav" id="logoutBtn">🚪 Logout</button>
+    </aside>
+    <main id="main"></main>
+  </div>
+</div>
+
+<div id="modal" class="modal hidden"><div class="modal-card"><button class="modal-x" id="modalX">×</button><div id="modalBody"></div></div></div>
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
